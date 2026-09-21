@@ -1,0 +1,15 @@
+<header class="mobile-app-header">
+	<a routerLink="/" class="mobile-brand">لقطة <span>LOKTA</span></a>
+	<div class="mobile-header-actions">
+		<a routerLink="/" fragment="shop" class="mobile-icon-button" aria-label="البحث">⌕</a>
+		<a routerLink="/" fragment="shop" class="mobile-cart-button" aria-label="السلة">♡<b>0</b></a>
+	</div>
+</header>
+<div #routeShell class="route-shell"><router-outlet (activate)="routeActivated()"></router-outlet></div>
+<nav class="mobile-bottom-nav" aria-label="التنقل الرئيسي">
+	<a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" [class.tab-selected]="activeTab() === 'home'" (click)="selectTab('home')"><span>⌂</span>الرئيسية</a>
+	<a routerLink="/" fragment="shop" [class.tab-selected]="activeTab() === 'sections'" (click)="selectTab('sections')"><span>☷</span>الأقسام</a>
+	<a routerLink="/" fragment="shop" [class.tab-selected]="activeTab() === 'cart'" (click)="selectTab('cart')"><span class="nav-bag">♡<b>{{ productService.cartCount() }}</b></span>السلة</a>
+	<a routerLink="/" fragment="shop" [class.tab-selected]="activeTab() === 'favorites'" (click)="selectTab('favorites')"><span>♡</span>المفضلة</a>
+</nav>
+<div *ngIf="tabMessage()" class="mobile-tab-toast" role="status">{{ tabMessage() }}</div>
