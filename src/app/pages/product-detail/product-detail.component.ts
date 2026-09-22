@@ -1,12 +1,14 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Product } from '../../models/product.model';
 import { ProductService } from '../../services/product.service';
 import { AnimationService } from '../../services/animation.service';
+import { OrderService } from '../../services/order.service';
+import { OrderData } from '../../models/order.model';
 import { gsap } from 'gsap';
-import { ORDER_CONFIG } from '../../config/order.config';
 
 @Component({
   selector: 'app-product-detail', standalone: true, imports: [CommonModule, FormsModule, RouterLink],
@@ -16,6 +18,7 @@ export class ProductDetailComponent implements OnInit, AfterViewInit, OnDestroy 
   private readonly route = inject(ActivatedRoute);
   private readonly productService = inject(ProductService);
   private readonly animations = inject(AnimationService);
+  private readonly orderService = inject(OrderService);
   @ViewChild('detailRoot') private detailRoot?: ElementRef<HTMLElement>;
   @ViewChild('gallery') private gallery?: ElementRef<HTMLElement>;
   @ViewChild('orderButton') private orderButton?: ElementRef<HTMLElement>;
@@ -70,7 +73,9 @@ export class ProductDetailComponent implements OnInit, AfterViewInit, OnDestroy 
     this.orderOpen.set(true);
   }
 
-  closeOrder(): void { this.orderOpen.set(false); }
+  closeOrder(): void {
+    if (!this.orderSubmitting()) this.orderOpen.set(false);
+  }
 
   submitOrder(): void {
     const details = this.orderForm();
@@ -79,32 +84,34 @@ export class ProductDetailComponent implements OnInit, AfterViewInit, OnDestroy 
       return;
     }
     if (!this.product || this.orderSubmitting()) return;
-    if (!ORDER_CONFIG.webhookUrl) {
-      this.orderError.set('رابط استقبال الطلبات لسه مش متضاف. ضيف رابط Make أو Zapier في order.config.ts.');
-      return;
-    }
-    const order = {
-      createdAt: new Date().toISOString(),
-      source: 'متجر لقطة',
-      product: this.product.title,
-      category: this.product.category,
+    const order: OrderData = {
+      customerName: details.name.trim(),
+      phone: details.phone.trim(),
+      address: details.address.trim(),
+      productTitle: this.product.title,
+      productImage: this.product.images[this.selectedImage()] || this.product.images[0],
       size: this.selectedSize(),
       color: this.selectedColor(),
       price: this.product.price,
-      customer: details
+      notes: details.notes.trim()
     };
     this.orderSubmitting.set(true);
-    fetch(ORDER_CONFIG.webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(order)
-    }).then(async response => {
-      const result = await response.json().catch(() => ({ message: 'تعذر استقبال الطلب حالياً.' }));
-      if (!response.ok) throw new Error(result.message || 'تعذر استقبال الطلب حالياً.');
-      this.orderSubmitted.set(true);
-    }).catch(error => {
-      this.orderError.set(error instanceof Error ? error.message : 'حصلت مشكلة أثناء إرسال الطلب.');
-    }).finally(() => this.orderSubmitting.set(false));
+    this.orderError.set('');
+    this.orderService.submitOrder(order).subscribe({
+      next: () => {
+        this.orderSubmitted.set(true);
+        this.orderOpen.set(false);
+        this.orderForm.set({ name: '', phone: '', address: '', notes: '' });
+      },
+      error: (error: HttpErrorResponse) => {
+        const serviceUnavailable = error.status === 503 || error.status === 504 || error.status === 0;
+        this.orderError.set(serviceUnavailable
+          ? 'خدمة الطلبات غير متاحة حالياً. يرجى المحاولة لاحقاً.'
+          : 'حصلت مشكلة أثناء إرسال الطلب. حاول تاني لو سمحت.');
+        this.orderSubmitting.set(false);
+      },
+      complete: () => this.orderSubmitting.set(false)
+    });
   }
 
   celebrateOrder(): void {
@@ -120,23 +127,4 @@ export class ProductDetailComponent implements OnInit, AfterViewInit, OnDestroy 
     this.celebrationContext?.revert();
   }
 
-  orderUrl(): string {
-    if (!this.product) return '#';
-    const details = this.orderForm();
-    const message = [
-      'طلب جديد من متجر لقطة',
-      '--------------------',
-      `المنتج: ${this.product.title}`,
-      `القسم: ${this.product.category}`,
-      `المقاس: ${this.selectedSize()}`,
-      `اللون: ${this.selectedColor()}`,
-      `السعر: ${this.product.price} ج.م`,
-      '',
-      `اسم العميل: ${details.name}`,
-      `رقم الموبايل: ${details.phone}`,
-      `العنوان: ${details.address}`,
-      `ملاحظات: ${details.notes || 'لا يوجد'}`
-    ].join('\n');
-    return `https://wa.me/201127273643?text=${encodeURIComponent(message)}`;
-  }
 }

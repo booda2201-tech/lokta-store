@@ -12,8 +12,8 @@ module.exports = {
         berry: '#8e5264'
       },
       fontFamily: {
-        display: ['"Fraunces"', 'serif'],
-        sans: ['"DM Sans"', 'sans-serif']
+        display: ['"Cairo"', 'sans-serif'],
+        sans: ['"Cairo"', 'sans-serif']
       },
       boxShadow: {
         soft: '0 18px 50px rgba(37, 35, 31, 0.09)'

@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve --port 4200",
+    "start": "node server/dev.cjs",
+    "start:api": "node server/dev.cjs --api-only",
+    "test:orders": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test server/orders.test.cjs",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
@@ -30,6 +32,7 @@
     "@angular/cli": "^16.2.16",
     "@angular/compiler-cli": "^16.2.0",
     "@types/jasmine": "~4.3.0",
+    "@vercel/node": "^13.0.1",
     "autoprefixer": "^10.6.1",
     "jasmine-core": "~4.6.0",
     "karma": "~6.4.0",

@@ -4,7 +4,21 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 
 ## Development server
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+Use Node.js 22.18+ (Node.js 24 recommended). Copy `.env.example` to `.env.local` and set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` for your Telegram bot and destination chat. Keep these values on the server; never place it in Angular source files.
+
+Run `npm start` to start Angular on `http://localhost:4200/` and the orders API on `127.0.0.1:3001`. Angular proxies `/api` to the API. If Angular is already running, restart it to load the proxy configuration; `npm run start:api` starts only the API.
+
+On Vercel, configure `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in the project's environment variables; `api/send-order.ts` handles the same endpoint in production. Orders succeed only after Telegram accepts the message.
+
+Use the Angular framework preset, build command `npm run build`, and output directory `dist/loqta`. Redeploy after setting the environment variable. See the [Vercel Node.js function documentation](https://vercel.com/docs/functions/runtimes/node-js).
+
+The checkout stays on the product page: confirmation sends the order in the background, closes the modal after success, and displays `تم استلام طلبك بنجاح! 🎉`. Failed requests preserve the form for retry. A local `/api/send-order` gateway timeout usually means the API process is not running; use `npm start` (or `npm run start:api` alongside an existing Angular server).
+
+Run `npm run test:orders` for API validation and delivery failure tests with mocked Telegram responses (no real orders are sent).
+
+Checkout includes the selected product image as `productImage`; the API also accepts `imageUrl`. Orders use Telegram `sendPhoto` with an HTML caption, falling back to `sendMessage` if no image is provided or photo delivery fails. Captions longer than 1024 characters use text directly to preserve all details. Images must be accessible to Telegram (local-only URLs will fall back to text). See [Telegram sendPhoto](https://core.telegram.org/bots/api#sendphoto).
+
+Telegram messages use HTML formatting with customer values escaped and the 4096-character message limit checked before sending. Missing text fields default to `غير محدد`, and a missing price defaults to zero. See the [Telegram sendMessage documentation](https://core.telegram.org/bots/api#sendmessage). Restart the local API after changing environment variables.
 
 ## Code scaffolding
 

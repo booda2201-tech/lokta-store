@@ -30,7 +30,7 @@ export class AnimationService {
         gsap.to('.hero-art', { x: x * -10, y: y * -8, duration: .9, ease: 'power2.out', overwrite: true });
       };
       root.addEventListener('mousemove', move, { passive: true });
-      context.add(() => root.removeEventListener('mousemove', move));
+      return () => root.removeEventListener('mousemove', move);
     }, root);
     return context;
   }
