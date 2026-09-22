@@ -37,6 +37,11 @@ yarn-error.log
 /coverage
 /libpeerconnection.log
 testem.log
+# Output from the local dev servers
+*.log
+*.err
+/output
+/.playwright-cli
 /typings
 
 # System files

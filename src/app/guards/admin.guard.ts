@@ -1,9 +1,11 @@
 import { CanActivateFn, Router } from '@angular/router';
 import { inject } from '@angular/core';
+import { AdminService } from '../services/admin.service';
 
-export const adminGuard: CanActivateFn = () => {
+// Reloading /admin must not bounce the owner home while Firebase is still restoring the session.
+export const adminGuard: CanActivateFn = async () => {
   const router = inject(Router);
-  return sessionStorage.getItem('loqta-admin') === 'true'
-    ? true
-    : router.createUrlTree(['/admin']);
+  const admin = inject(AdminService);
+  await admin.ready;
+  return admin.authenticated() ? true : router.createUrlTree(['/']);
 };

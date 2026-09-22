@@ -1,0 +1,42 @@
+rules_version = '2';
+
+// Shoppers may read the catalogue and place an order, and nothing else.
+// The studio is the signed-in owner: a document under admins/{uid} is what grants it.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // An order arrives with the details the checkout form collects, and always starts as new.
+    function isNewOrder() {
+      let order = request.resource.data;
+      return order.keys().hasAll(['customerName', 'phone', 'address', 'status', 'placedAt'])
+        && order.customerName is string && order.customerName.size() > 0 && order.customerName.size() <= 120
+        && order.phone is string && order.phone.size() > 0 && order.phone.size() <= 40
+        && order.address is string && order.address.size() > 0 && order.address.size() <= 500
+        && (!('notes' in order) || (order.notes is string && order.notes.size() <= 1000))
+        && order.status == 'جديد';
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow create: if isNewOrder();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // The studio only checks its own entry; the list itself is managed from the Firebase console.
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

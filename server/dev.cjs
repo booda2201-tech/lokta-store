@@ -5,7 +5,13 @@ const { spawn } = require('node:child_process');
 
 process.chdir(path.resolve(__dirname, '..'));
 if (existsSync('.env.local')) process.loadEnvFile('.env.local');
-const handler = require('../api/send-order.ts').default;
+const handlerPath = require.resolve('../api/send-order.ts');
+// The handler is edited while this server runs, and a cached copy would keep answering
+// with yesterday's code: reload it per request so what you saved is what you test.
+const loadHandler = () => {
+  delete require.cache[handlerPath];
+  return require(handlerPath).default;
+};
 
 const server = http.createServer(async (request, response) => {
   response.status = code => { response.statusCode = code; return response; };
@@ -21,14 +27,15 @@ const server = http.createServer(async (request, response) => {
     let body = '';
     for await (const chunk of request) {
       body += chunk;
-      if (Buffer.byteLength(body) > 16384) {
+      // Orders carry the product photos, so the cap matches the one Vercel applies in production.
+      if (Buffer.byteLength(body) > 4.5 * 1024 * 1024) {
         response.status(413).json({ message: 'Request too large' });
         return;
       }
     }
     try { request.body = body ? JSON.parse(body) : undefined; }
     catch { response.status(400).json({ message: 'Invalid JSON' }); return; }
-    await handler(request, response);
+    await loadHandler()(request, response);
   } catch {
     response.status(500).json({ message: 'تعذر إرسال الطلب حالياً.' });
   }

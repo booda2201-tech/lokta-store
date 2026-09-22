@@ -12,7 +12,9 @@ On Vercel, configure `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in the project'
 
 Use the Angular framework preset, build command `npm run build`, and output directory `dist/loqta`. Redeploy after setting the environment variable. See the [Vercel Node.js function documentation](https://vercel.com/docs/functions/runtimes/node-js).
 
-The checkout stays on the product page: confirmation sends the order in the background, closes the modal after success, and displays `تم استلام طلبك بنجاح! 🎉`. Failed requests preserve the form for retry. A local `/api/send-order` gateway timeout usually means the API process is not running; use `npm start` (or `npm run start:api` alongside an existing Angular server).
+The checkout stays on the product page: confirmation sends the order in the background, closes the modal after success, and displays `تم استلام طلبك بنجاح! 🎉`. Failed requests preserve the form for retry.
+
+The cart orders everything at once: each bag line keeps its own size, colour and quantity (up to 10 per product, stored in `lokta-cart`), and `اطلب الشنطة كلها` sends all of them in one request as `items` (`productTitle`, `size`, `color`, `price`, `quantity`). The API lists one line per product and totals the order itself, so `price` at the top level is ignored for cart orders; the cart is emptied only after Telegram accepts the message. Orders without `items` keep the single-product format. A local `/api/send-order` gateway timeout usually means the API process is not running; use `npm start` (or `npm run start:api` alongside an existing Angular server).
 
 Run `npm run test:orders` for API validation and delivery failure tests with mocked Telegram responses (no real orders are sent).
 

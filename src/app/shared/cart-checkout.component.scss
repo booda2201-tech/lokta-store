@@ -1,0 +1,2 @@
+.checkout-lines{display:grid;gap:9px;margin:20px 0 14px;max-height:33dvh;overflow:auto;scrollbar-width:none;-ms-overflow-style:none}.checkout-lines::-webkit-scrollbar{display:none}.checkout-total{display:flex;justify-content:space-between;align-items:center;padding-top:14px;border-top:1px solid var(--line);font-size:13px}.checkout-total span{font-size:11px;color:var(--muted)}
+@media(max-width:720px){.checkout-lines{max-height:25dvh}}

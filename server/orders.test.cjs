@@ -177,10 +177,123 @@ test('sends complete long orders as text instead of truncating the photo caption
   assert.equal(calls, 1);
 });
 
+test('lists every cart item once and totals the combined order itself', async () => {
+  let sent;
+  global.fetch = async (_, options) => { sent = JSON.parse(options.body); return accepted(); };
+  const items = [
+    { productTitle: 'فستان وردي', size: '4 سنين', color: 'مرجاني', price: 690, quantity: 2 },
+    { productTitle: 'رومبر البرعم', size: 'من 6 لـ 12 شهر', color: 'أصفر ليموني', price: 460, quantity: 1 }
+  ];
+  const response = await call({ customerName: 'Test', phone: '01000000000', address: 'Cairo', price: 1, items, notes: 'Test note' });
+  assert.equal(response.code, 200);
+  assert.equal(sent.text, [
+    '<b>🛍️ طلب جديد من لقطة!</b>',
+    '<b>👤 العميل:</b> Test',
+    '<b>📱 الهاتف:</b> 01000000000',
+    '<b>📍 العنوان:</b> Cairo',
+    '<b>🛒 الطلب:</b> 2 منتج · إجمالي 3 قطعة',
+    '<b>1.</b> فستان وردي — 4 سنين · مرجاني · ×2 · 1380 ج.م',
+    '<b>2.</b> رومبر البرعم — من 6 لـ 12 شهر · أصفر ليموني · ×1 · 460 ج.م',
+    '<b>💰 الإجمالي:</b> 1840 ج.م',
+    '<b>📝 ملاحظات:</b> Test note'
+  ].join('\n'));
+});
+
+test('rejects cart orders with missing or malformed items', async () => {
+  global.fetch = () => { throw new Error('Must not send'); };
+  const item = { productTitle: 'Dress', size: 'M', color: 'Pink', price: 500, quantity: 1 };
+  for (const items of [[], {}, 'Dress', [null], ['Dress'], [{ ...item, size: 5 }], [{ ...item, price: -1 }], [{ ...item, price: '500' }],
+    [{ ...item, quantity: 0 }], [{ ...item, quantity: 1.5 }], [{ ...item, quantity: 100 }], Array.from({ length: 31 }, () => item)]) {
+    assert.equal((await call({ ...order, items })).code, 400);
+  }
+});
+
+const upload = `data:image/jpeg;base64,${Buffer.from('a tiny jpeg').toString('base64')}`;
+
+test('uploads a catalogue photo as a file, since Telegram cannot fetch a data url', async () => {
+  let sent;
+  global.fetch = async (url, options) => {
+    assert.ok(url.endsWith('/sendPhoto'));
+    assert.equal(options.headers, undefined);
+    sent = options.body;
+    return accepted();
+  };
+  assert.equal((await call({ ...order, productImage: upload })).code, 200);
+  assert.ok(sent instanceof FormData);
+  assert.equal(sent.get('chat_id'), '-100123');
+  assert.equal(sent.get('parse_mode'), 'HTML');
+  assert.ok(sent.get('caption').startsWith('<b>🛍️ طلب جديد من لقطة!</b>'));
+  const photo = sent.get('photo');
+  assert.equal(photo.type, 'image/jpeg');
+  assert.equal(photo.name, 'photo.jpeg');
+  assert.equal(await photo.text(), 'a tiny jpeg');
+});
+
+test('sends one album carrying a photo for every piece in the basket', async () => {
+  let sent;
+  global.fetch = async (url, options) => {
+    assert.ok(url.endsWith('/sendMediaGroup'));
+    sent = options.body;
+    return accepted();
+  };
+  const items = [
+    { productTitle: 'فستان', size: '4 سنين', color: 'مرجاني', price: 690, quantity: 1, image: upload },
+    { productTitle: 'رومبر', size: 'سنتين', color: 'أصفر', price: 460, quantity: 1, image: 'https://example.com/romper.jpg' }
+  ];
+  assert.equal((await call({ customerName: 'Test', phone: '0100', address: 'Cairo', items })).code, 200);
+  const media = JSON.parse(sent.get('media'));
+  assert.equal(media.length, 2);
+  assert.equal(media[0].media, 'attach://photo0');
+  assert.ok(media[0].caption.includes('<b>1.</b> فستان'));
+  assert.equal(media[0].parse_mode, 'HTML');
+  assert.equal(media[1].media, 'https://example.com/romper.jpg');
+  assert.equal(media[1].caption, undefined);
+  assert.equal(await sent.get('photo0').text(), 'a tiny jpeg');
+  assert.equal(sent.get('photo1'), null);
+});
+
+test('shows each piece once and stops at the ten photos an album holds', async () => {
+  let media;
+  global.fetch = async (_, options) => { media = JSON.parse(options.body.get('media')); return accepted(); };
+  const piece = index => ({ productTitle: `قطعة ${index}`, size: 'M', color: 'وردي', price: 100, quantity: 1, image: `https://example.com/${index}.jpg` });
+  const items = Array.from({ length: 14 }, (_, index) => piece(index));
+  assert.equal((await call({ customerName: 'Test', phone: '0100', address: 'Cairo', items })).code, 200);
+  assert.equal(media.length, 10);
+  assert.deepEqual(media.map(entry => entry.media), Array.from({ length: 10 }, (_, index) => `https://example.com/${index}.jpg`));
+});
+
+test('sends a basket of the same piece as one photo rather than a repeated album', async () => {
+  let sent;
+  global.fetch = async (url, options) => {
+    assert.ok(url.endsWith('/sendPhoto'));
+    sent = JSON.parse(options.body);
+    return accepted();
+  };
+  const piece = { productTitle: 'فستان', size: 'M', color: 'وردي', price: 100, quantity: 1, image: 'https://example.com/fustan.jpg' };
+  const items = Array.from({ length: 4 }, () => ({ ...piece }));
+  assert.equal((await call({ customerName: 'Test', phone: '0100', address: 'Cairo', items })).code, 200);
+  assert.equal(sent.photo, 'https://example.com/fustan.jpg');
+});
+
+test('ignores unusable photos instead of letting them break delivery', async () => {
+  const methods = [];
+  global.fetch = async url => { methods.push(url.split('/').pop()); return accepted(); };
+  for (const image of ['not-a-url', 'data:image/jpeg;base64,', 'data:text/plain;base64,aGk=', `data:image/jpeg;base64,${'A'.repeat(15 * 1024 * 1024)}`]) {
+    assert.equal((await call({ ...order, productImage: image })).code, 200);
+  }
+  assert.deepEqual(methods, ['sendMessage', 'sendMessage', 'sendMessage', 'sendMessage']);
+});
+
+test('rejects items whose photo is not text', async () => {
+  global.fetch = () => { throw new Error('Must not send'); };
+  const item = { productTitle: 'Dress', size: 'M', color: 'Pink', price: 500, quantity: 1 };
+  assert.equal((await call({ ...order, items: [{ ...item, image: 5 }] })).code, 400);
+});
+
 test('prefers productImage and uses imageUrl when productImage is blank', async () => {
   const photos = [];
   global.fetch = async (_, options) => { photos.push(JSON.parse(options.body).photo); return accepted(); };
-  await call({ ...order, productImage: 'first', imageUrl: 'second' });
-  await call({ ...order, productImage: ' ', imageUrl: 'second' });
-  assert.deepEqual(photos, ['first', 'second']);
+  await call({ ...order, productImage: 'https://example.com/first.jpg', imageUrl: 'https://example.com/second.jpg' });
+  await call({ ...order, productImage: ' ', imageUrl: 'https://example.com/second.jpg' });
+  assert.deepEqual(photos, ['https://example.com/first.jpg', 'https://example.com/second.jpg']);
 });
