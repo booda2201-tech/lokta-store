@@ -45,8 +45,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
   }
   const text = [`<b>${title}</b>`, ...fields.map(([label, value]) => `<b>${label}</b> ${escapeHtml(value)}`)].join('\n');
 
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
-  const chatId = process.env.TELEGRAM_CHAT_ID?.trim();
+  const token = process.env['TELEGRAM_BOT_TOKEN']?.trim();
+  const chatId = process.env['TELEGRAM_CHAT_ID']?.trim();
   if (!token || !chatId) {
     response.status(503).json({
       success: false,
